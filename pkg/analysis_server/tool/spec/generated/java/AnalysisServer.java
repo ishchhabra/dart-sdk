@@ -490,9 +490,10 @@ public interface AnalysisServer {
    *        compute the set of packages imported in the source and check to see if they are listed in
    *        the corresponding pubspec file, and compute the fixes, if any. If this field is omitted
    *        the flag defaults to false.
+   * @param insertIgnoreComments
    * @param codes A list of diagnostic codes to be fixed.
    */
-  public void edit_bulkFixes(List<String> included, boolean inTestMode, boolean updatePubspec, List<String> codes, BulkFixesConsumer consumer);
+  public void edit_bulkFixes(List<String> included, boolean inTestMode, boolean updatePubspec, boolean insertIgnoreComments, List<String> codes, BulkFixesConsumer consumer);
 
   /**
    * {@code edit.format}

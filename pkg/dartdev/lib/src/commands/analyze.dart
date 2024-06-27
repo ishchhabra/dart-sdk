@@ -45,7 +45,6 @@ class AnalyzeCommand extends DartdevCommand {
           help: 'Treat info level issues as fatal.', negatable: false)
       ..addFlag('fatal-warnings',
           help: 'Treat warning level issues as fatal.', defaultsTo: true)
-      ..addFlag('ignore', defaultsTo: false)
 
       // Options hidden by default.
       ..addOption(
@@ -124,7 +123,6 @@ class AnalyzeCommand extends DartdevCommand {
     /// and a note that they might be the cause of other errors.
     final List<AnalysisError> priorityErrors = <AnalysisError>[];
     final List<AnalysisError> errors = <AnalysisError>[];
-    final List<FileAnalysisErrors> fileErrorsList = <FileAnalysisErrors>[];
 
     final machineFormat = args.option('format') == 'machine';
     final jsonFormat = args.option('format') == 'json';
@@ -185,8 +183,6 @@ class AnalyzeCommand extends DartdevCommand {
     );
 
     server.onErrors.listen((FileAnalysisErrors fileErrors) {
-      fileErrorsList.add(fileErrors);
-
       var isPriorityFile = const {'analysis_options.yaml', 'pubspec.yaml'}
           .contains(path.basename(fileErrors.file));
 
@@ -262,15 +258,6 @@ class AnalyzeCommand extends DartdevCommand {
               : relativeTo as io.Directory?,
           verbose: verbose,
         );
-      }
-
-      bool ignore = args.flag('ignore');
-      if (ignore) {
-        for (final fileError in fileErrorsList) {
-          _ignoreFileErrors(fileError);
-        }
-
-        return _Result.success.exitCode;
       }
 
       if (priorityErrors.isNotEmpty) {
@@ -495,40 +482,6 @@ class AnalyzeCommand extends DartdevCommand {
     String? fromPath = fromDir?.absolute.resolveSymbolicLinksSync();
     String relative = path.relative(givenPath, from: fromPath);
     return relative.length <= givenPath.length ? relative : givenPath;
-  }
-
-  Future<void> _ignoreFileErrors(FileAnalysisErrors fileErrors) async {
-    final file = io.File(fileErrors.file);
-    if (!file.existsSync()) {
-      return;
-    }
-
-    final lines = await file.readAsLines();
-
-    final Map<int, List<AnalysisError>> fileErrorsByLine = {};
-    for (final error in fileErrors.errors) {
-      final line = error.startLine;
-      if (line == null) {
-        continue;
-      }
-
-      fileErrorsByLine[line] = [];
-      if (!fileErrorsByLine.containsKey(line)) {
-        fileErrorsByLine[line] = [];
-      }
-
-      fileErrorsByLine[line]!.add(error);
-    }
-
-    for (final entry in fileErrorsByLine.entries) {
-      final line = entry.key;
-      final lineErrors = entry.value;
-
-      final errorCodes = lineErrors.map((error) => error.code);
-      lines[line - 1] += ' // ignore: ${errorCodes.join(', ')}';
-    }
-
-    await file.writeAsString(lines.join('\n'));
   }
 }
 

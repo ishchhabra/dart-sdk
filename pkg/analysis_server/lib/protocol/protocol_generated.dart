@@ -4965,6 +4965,7 @@ class DiagnosticGetServerPortResult implements ResponseResult {
 ///   "included": List<FilePath>
 ///   "inTestMode": optional bool
 ///   "updatePubspec": optional bool
+///   "insertIgnoreComments": optional bool
 ///   "codes": optional List<String>
 /// }
 ///
@@ -4997,11 +4998,16 @@ class EditBulkFixesParams implements RequestParams {
   /// If this field is omitted the flag defaults to false.
   bool? updatePubspec;
 
+  bool? insertIgnoreComments;
+
   /// A list of diagnostic codes to be fixed.
   List<String>? codes;
 
   EditBulkFixesParams(this.included,
-      {this.inTestMode, this.updatePubspec, this.codes});
+      {this.inTestMode,
+      this.updatePubspec,
+      this.insertIgnoreComments,
+      this.codes});
 
   factory EditBulkFixesParams.fromJson(
       JsonDecoder jsonDecoder, String jsonPath, Object? json) {
@@ -5027,13 +5033,21 @@ class EditBulkFixesParams implements RequestParams {
         updatePubspec = jsonDecoder.decodeBool(
             '$jsonPath.updatePubspec', json['updatePubspec']);
       }
+      bool? insertIgnoreComments;
+      if (json.containsKey('insertIgnoreComments')) {
+        insertIgnoreComments = jsonDecoder.decodeBool(
+            '$jsonPath.insertIgnoreComments', json['insertIgnoreComments']);
+      }
       List<String>? codes;
       if (json.containsKey('codes')) {
         codes = jsonDecoder.decodeList(
             '$jsonPath.codes', json['codes'], jsonDecoder.decodeString);
       }
       return EditBulkFixesParams(included,
-          inTestMode: inTestMode, updatePubspec: updatePubspec, codes: codes);
+          inTestMode: inTestMode,
+          updatePubspec: updatePubspec,
+          insertIgnoreComments: insertIgnoreComments,
+          codes: codes);
     } else {
       throw jsonDecoder.mismatch(jsonPath, 'edit.bulkFixes params', json);
     }
@@ -5058,6 +5072,10 @@ class EditBulkFixesParams implements RequestParams {
     if (updatePubspec != null) {
       result['updatePubspec'] = updatePubspec;
     }
+    var insertIgnoreComments = this.insertIgnoreComments;
+    if (insertIgnoreComments != null) {
+      result['insertIgnoreComments'] = insertIgnoreComments;
+    }
     var codes = this.codes;
     if (codes != null) {
       result['codes'] = codes;
@@ -5080,6 +5098,7 @@ class EditBulkFixesParams implements RequestParams {
               included, other.included, (String a, String b) => a == b) &&
           inTestMode == other.inTestMode &&
           updatePubspec == other.updatePubspec &&
+          insertIgnoreComments == other.insertIgnoreComments &&
           listEqual(codes, other.codes, (String a, String b) => a == b);
     }
     return false;
@@ -5090,6 +5109,7 @@ class EditBulkFixesParams implements RequestParams {
         Object.hashAll(included),
         inTestMode,
         updatePubspec,
+        insertIgnoreComments,
         Object.hashAll(codes ?? []),
       );
 }
