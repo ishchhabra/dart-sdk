@@ -153,6 +153,8 @@ const String DIAGNOSTIC_RESPONSE_GET_SERVER_PORT_PORT = 'port';
 const String EDIT_REQUEST_BULK_FIXES = 'edit.bulkFixes';
 const String EDIT_REQUEST_BULK_FIXES_CODES = 'codes';
 const String EDIT_REQUEST_BULK_FIXES_INCLUDED = 'included';
+const String EDIT_REQUEST_BULK_FIXES_INSERT_IGNORE_COMMENTS =
+    'insertIgnoreComments';
 const String EDIT_REQUEST_BULK_FIXES_IN_TEST_MODE = 'inTestMode';
 const String EDIT_REQUEST_BULK_FIXES_UPDATE_PUBSPEC = 'updatePubspec';
 const String EDIT_REQUEST_FORMAT = 'edit.format';

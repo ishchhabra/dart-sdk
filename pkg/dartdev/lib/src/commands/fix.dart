@@ -47,6 +47,12 @@ To use the tool, run either ['dart fix --dry-run'] for a preview of the proposed
       negatable: false,
       help: 'Apply the proposed changes.',
     );
+    argParser.addFlag(
+      'insert-ignore-comments',
+      defaultsTo: false,
+      negatable: false,
+      help: 'Insert ignore comments for errors that can not be fixed automatically.',
+    );
     argParser.addMultiOption(
       'code',
       help: 'Apply fixes for one (or more) diagnostic codes.',
@@ -88,6 +94,7 @@ To use the tool, run either ['dart fix --dry-run'] for a preview of the proposed
       printUsage();
       return 0;
     }
+    var insertIgnoreComments = args.flag('insert-ignore-comments');
     var codes = args.multiOption('code');
 
     var rest = args.rest;
@@ -142,7 +149,8 @@ To use the tool, run either ['dart fix --dry-run'] for a preview of the proposed
       List<SourceFileEdit> edits;
       var pass = 0;
       do {
-        var fixes = await server.requestBulkFixes(fixPath, inTestMode, codes);
+        var fixes = await server.requestBulkFixes(fixPath, inTestMode, codes, insertIgnoreComments: insertIgnoreComments); 
+        log.stdout(fixes.message);
         var message = fixes.message;
         if (message.isNotEmpty) {
           return _FixRequestResult(message: message);
@@ -158,7 +166,7 @@ To use the tool, run either ['dart fix --dry-run'] for a preview of the proposed
       // to pubspec
       if (edits.isEmpty && detailsMap.isNotEmpty) {
         var fixes = await server.requestBulkFixes(fixPath, inTestMode, [],
-            updatePubspec: true);
+            updatePubspec: true, insertIgnoreComments: insertIgnoreComments);
         _mergeDetails(detailsMap, fixes.details);
         edits = fixes.edits;
         _applyEdits(server, edits);

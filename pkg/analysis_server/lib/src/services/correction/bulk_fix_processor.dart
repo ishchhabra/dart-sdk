@@ -8,6 +8,7 @@ import 'package:analysis_server/protocol/protocol_generated.dart'
 import 'package:analysis_server/src/lsp/error_or.dart';
 import 'package:analysis_server/src/lsp/source_edits.dart';
 import 'package:analysis_server/src/services/correction/dart/data_driven.dart';
+import 'package:analysis_server/src/services/correction/dart/ignore_diagnostic.dart';
 import 'package:analysis_server/src/services/correction/dart/organize_imports.dart';
 import 'package:analysis_server/src/services/correction/dart/remove_unused_import.dart';
 import 'package:analysis_server/src/services/correction/fix/pubspec/fix_generator.dart';
@@ -249,8 +250,9 @@ class BulkFixProcessor {
   /// Return a [BulkFixRequestResult] that includes a change builder that has
   /// been used to create fixes for the diagnostics in the libraries in the
   /// given [contexts].
-  Future<BulkFixRequestResult> fixErrors(List<AnalysisContext> contexts) =>
-      _computeFixes(contexts);
+  Future<BulkFixRequestResult> fixErrors(List<AnalysisContext> contexts,
+          {bool insertIgnoreComments = false}) =>
+      _computeFixes(contexts, insertIgnoreComments: insertIgnoreComments);
 
   /// Return a change builder that has been used to create fixes for the
   /// diagnostics in [file] in the given [context].
@@ -338,6 +340,7 @@ class BulkFixProcessor {
     String codeName,
     CorrectionProducerContext context, {
     bool parsedOnly = false,
+    bool insertIgnoreComments = false,
   }) async {
     for (var generator in generators) {
       var producer = generator(context: context);
@@ -346,7 +349,9 @@ class BulkFixProcessor {
       var shouldFix = (context.dartFixContext?.autoTriggered ?? false)
           ? producer.canBeAppliedAutomatically
           : producer.canBeAppliedAcrossFiles;
-      if (shouldFix) {
+
+      if (shouldFix ||
+          (insertIgnoreComments && producer is IgnoreDiagnosticOnLine)) {
         await _generateFix(context, producer, codeName);
         if (isCancelled) {
           return;
@@ -452,6 +457,7 @@ class BulkFixProcessor {
   Future<BulkFixRequestResult> _computeFixes(
     List<AnalysisContext> contexts, {
     bool stopAfterFirst = false,
+    bool insertIgnoreComments = false,
   }) async {
     // Ensure specified codes are defined.
     var codes = this.codes;
@@ -480,7 +486,7 @@ class BulkFixProcessor {
           continue;
         }
 
-        if (!await _hasFixableErrors(context, path)) {
+        if (!insertIgnoreComments  && !await _hasFixableErrors(context, path)) {
           continue;
         }
 
@@ -489,7 +495,11 @@ class BulkFixProcessor {
           break;
         }
         if (library is ResolvedLibraryResult) {
-          await _fixErrorsInLibrary(library, stopAfterFirst: stopAfterFirst);
+          await _fixErrorsInLibrary(
+            library,
+            stopAfterFirst: stopAfterFirst,
+            insertIgnoreComments: insertIgnoreComments,
+          );
           if (isCancelled || (stopAfterFirst && changeMap.hasFixes)) {
             break;
           }
@@ -594,19 +604,32 @@ class BulkFixProcessor {
 
   /// Use the change [builder] to create fixes for the diagnostics in the
   /// library associated with the analysis [result].
-  Future<void> _fixErrorsInLibrary(ResolvedLibraryResult result,
-      {bool stopAfterFirst = false, bool autoTriggered = false}) async {
+  Future<void> _fixErrorsInLibrary(
+    ResolvedLibraryResult result, {
+    bool stopAfterFirst = false,
+    bool autoTriggered = false,
+    bool insertIgnoreComments = false,
+  }) async {
     for (var unitResult in result.units) {
-      await _fixErrorsInLibraryUnit(unitResult, result,
-          stopAfterFirst: stopAfterFirst, autoTriggered: autoTriggered);
+      await _fixErrorsInLibraryUnit(
+        unitResult,
+        result,
+        stopAfterFirst: stopAfterFirst,
+        autoTriggered: autoTriggered,
+        insertIgnoreComments: insertIgnoreComments,
+      );
     }
   }
 
   /// Use the change [builder] to create fixes for the diagnostics in
   /// [unit].
   Future<void> _fixErrorsInLibraryUnit(
-      ResolvedUnitResult unit, ResolvedLibraryResult library,
-      {bool stopAfterFirst = false, bool autoTriggered = false}) async {
+    ResolvedUnitResult unit,
+    ResolvedLibraryResult library, {
+    bool stopAfterFirst = false,
+    bool autoTriggered = false,
+    bool insertIgnoreComments = false,
+  }) async {
     var analysisOptions =
         unit.session.analysisContext.getAnalysisOptionsForFile(unit.file);
 
@@ -640,7 +663,12 @@ class BulkFixProcessor {
     //
     for (var error in _filterErrors(analysisOptions, unit.errors)) {
       var context = fixContext(error, autoTriggered: autoTriggered);
-      await _fixSingleError(context, unit, error);
+      await _fixSingleError(
+        context,
+        unit,
+        error,
+        insertIgnoreComments: insertIgnoreComments,
+      );
       if (isCancelled || (stopAfterFirst && changeMap.hasFixes)) {
         return;
       }
@@ -709,11 +737,9 @@ class BulkFixProcessor {
   /// Uses the change [builder] and the [fixContext] to create a fix for the
   /// given [diagnostic] in the compilation unit associated with the analysis
   /// [result].
-  Future<void> _fixSingleError(
-    DartFixContext fixContext,
-    ResolvedUnitResult result,
-    AnalysisError diagnostic,
-  ) async {
+  Future<void> _fixSingleError(DartFixContext fixContext,
+      ResolvedUnitResult result, AnalysisError diagnostic,
+      {bool insertIgnoreComments = false}) async {
     var context = CorrectionProducerContext.createResolved(
       applyingBulkFixes: true,
       dartFixContext: fixContext,
@@ -727,8 +753,11 @@ class BulkFixProcessor {
     var codeName = errorCode.name;
     try {
       if (errorCode is LintCode) {
-        var generators = FixProcessor.lintProducerMap[codeName] ?? [];
-        await _bulkApply(generators, codeName, context);
+        var generators = [
+          ...?FixProcessor.lintProducerMap[codeName],
+          if (insertIgnoreComments) IgnoreDiagnosticOnLine.new,
+        ];
+        await _bulkApply(generators, codeName, context, insertIgnoreComments: insertIgnoreComments);
         if (isCancelled) {
           return;
         }
